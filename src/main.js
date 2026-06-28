@@ -4,9 +4,11 @@ const { createWorker, PSM } = require('tesseract.js');
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 600,
-    height: 500,
-    resizable: false,
+    width: 1000,
+    height: 900,
+    minWidth: 700,
+    minHeight: 600,
+    resizable: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false // Simplified for local personal utility use
