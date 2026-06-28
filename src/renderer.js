@@ -1,5 +1,9 @@
 const { ipcRenderer } = require('electron');
-const Tesseract = require('tesseract.js');
+
+// OCR runs in the main process; show its progress here
+ipcRenderer.on('ocr-progress', (event, pct) => {
+  statusText.innerText = `Extracting Text: ${pct}%`;
+});
 
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
@@ -69,15 +73,14 @@ async function processImage(imageSource) {
   statusText.style.color = '#f9e2af';
 
   try {
-    const result = await Tesseract.recognize(imageSource, 'jpn_vert', {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          statusText.innerText = `Extracting Text: ${Math.round(m.progress * 100)}%`;
-        }
-      }
-    });
+    // Convert File/Blob to raw bytes to hand off to the main process
+    let bytes = imageSource;
+    if (imageSource instanceof Blob) {
+      bytes = new Uint8Array(await imageSource.arrayBuffer());
+    }
 
-    const extractedText = result.data.text;
+    // OCR is performed in the main process (see main.js run-ocr handler)
+    const extractedText = await ipcRenderer.invoke('run-ocr', bytes);
 
     if (extractedText.trim().length === 0) {
       statusText.innerText = 'No Japanese text detected.';
