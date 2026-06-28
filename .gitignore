@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Tesseract language data (downloaded on demand from the CDN)
+*.traineddata
+
+# Build output
+dist/
+out/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
