@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard } = require('electron');
 const path = require('node:path');
 const { createWorker, PSM } = require('tesseract.js');
 
@@ -66,8 +66,22 @@ ipcMain.handle('run-ocr', async (event, bytes) => {
   return data.text;
 });
 
-// Open the recognized text in DeepL in the default browser
+// Handle opening DeepL securely in the default browser
 ipcMain.on('open-deepl', (event, text) => {
-  const deepLUrl = `https://www.deepl.com/translator#ja/en/${encodeURIComponent(text)}`;
+  // DeepL's deep-link format is #ja/en/<source>/<target>, so a literal "/" in the
+  // text shoves everything after it into the output pane. Vertical OCR also tends
+  // to misread the long dash "――" as slash/bar noise ("/", "|"). Collapse line
+  // breaks and strip these separator characters so the whole text stays as input.
+  const oneLine = text
+    .replace(/\s+/g, ' ')
+    .replace(/[／/＼\\｜|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Keep the full original text on the clipboard as a reliable fallback in case
+  // a very long page still exceeds DeepL's deep-link length limit.
+  clipboard.writeText(text);
+
+  const deepLUrl = `https://www.deepl.com/translator#ja/en/${encodeURIComponent(oneLine)}`;
   shell.openExternal(deepLUrl);
 });

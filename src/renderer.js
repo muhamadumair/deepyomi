@@ -224,11 +224,11 @@ async function runExtract() {
       return;
     }
 
-    statusText.innerText = 'Opening translation in DeepL...';
+    statusText.innerText = 'Opening DeepL (full text also copied to clipboard)...';
     statusText.style.color = '#a6e3a1';
     ipcRenderer.send('open-deepl', extractedText);
 
-    setTimeout(() => { statusText.innerText = 'Ready'; }, 3000);
+    setTimeout(() => { statusText.innerText = 'Ready'; }, 4000);
   } catch (error) {
     console.error(error);
     statusText.innerText = `OCR error: ${error.message || error}`;
