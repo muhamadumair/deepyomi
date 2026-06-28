@@ -66,22 +66,56 @@ ipcMain.handle('run-ocr', async (event, bytes) => {
   return data.text;
 });
 
-// Handle opening DeepL securely in the default browser
-ipcMain.on('open-deepl', (event, text) => {
-  // DeepL's deep-link format is #ja/en/<source>/<target>, so a literal "/" in the
-  // text shoves everything after it into the output pane. Vertical OCR also tends
-  // to misread the long dash "――" as slash/bar noise ("/", "|"). Collapse line
-  // breaks and strip these separator characters so the whole text stays as input.
-  const oneLine = text
-    .replace(/\s+/g, ' ')
+// Range of characters that count as "Japanese" (kana, kanji, CJK punctuation,
+// and full-width forms incl. 「」『』《》（）).
+const JP = '\\u3000-\\u30FF\\u4E00-\\u9FFF\\uFF00-\\uFFEF';
+
+// Clean and format OCR text from a light-novel page for translation.
+function formatNovelText(text) {
+  let t = text
+    // DeepL deep-link is #ja/en/<source>/<target>; a literal "/" splits the panes.
+    // Vertical OCR also misreads the long dash "――" as slash/bar noise.
     .replace(/[／/＼\\｜|]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Keep the full original text on the clipboard as a reliable fallback in case
-  // a very long page still exceeds DeepL's deep-link length limit.
-  clipboard.writeText(text);
+  // Drop isolated Latin letters wedged between Japanese characters. These are
+  // OCR noise for punctuation (e.g. the 》 in 《女神》 misread as "w").
+  t = t.replace(new RegExp(`(?<=[${JP}])[A-Za-z](?=[${JP}])`, 'g'), '');
 
-  const deepLUrl = `https://www.deepl.com/translator#ja/en/${encodeURIComponent(oneLine)}`;
+  // Vertical OCR often misreads the closing guillemet 》 as a stray 。
+  // Repair 《…。 (no closing 》) back into 《…》.
+  t = t.replace(/《([^》。\n]{1,12})。/g, '《$1》');
+
+  // Dialogue corner brackets 「」 are often read as half-width square brackets.
+  t = t.replace(/[\[［]/g, '「').replace(/[\]］]/g, '」');
+
+  // The Japanese ellipsis …… is frequently misread as colons or a vertical
+  // ellipsis glyph. Normalize those back to ……
+  t = t.replace(/[:：]{2,}/g, '……').replace(/[⋮︙]+/g, '……');
+
+  // Separate each dialogue (「…」 / 『…』) and monologue (（…） / (…)) from the
+  // surrounding narration with a blank line.
+  t = t
+    .replace(/\s*([「『（(])/g, '\n\n$1')
+    .replace(/([」』）)])\s*/g, '$1\n\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\n+|\n+$/g, '')
+    .trim();
+
+  return t;
+}
+
+// Handle opening DeepL securely in the default browser
+ipcMain.on('open-deepl', (event, text) => {
+  const formatted = formatNovelText(text);
+
+  // Keep the formatted text on the clipboard as a reliable fallback in case a
+  // very long page still exceeds DeepL's deep-link length limit.
+  clipboard.writeText(formatted);
+
+  const deepLUrl = `https://www.deepl.com/translator#ja/en/${encodeURIComponent(formatted)}`;
   shell.openExternal(deepLUrl);
 });
