@@ -14,12 +14,65 @@ const cropBox = document.getElementById('crop-box');
 const actions = document.getElementById('actions');
 const extractBtn = document.getElementById('extract-btn');
 const clearBtn = document.getElementById('clear-btn');
+const zoomLabel = document.getElementById('zoom-label');
+const modeCropBtn = document.getElementById('mode-crop');
+const modePanBtn = document.getElementById('mode-pan');
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
+const zoomFitBtn = document.getElementById('zoom-fit');
 
 let currentPreviewUrl = null;
-let cropDisplay = null;   // selection in on-screen pixels
-let cropNatural = null;   // selection mapped to natural image pixels
+let cropNatural = null;   // selection mapped to natural image pixels (== image-local px)
+
+// View transform state (transform-origin is top-left of #preview-wrap)
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+let mode = 'crop';        // 'crop' | 'pan'
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 12;
 
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+function applyTransform() {
+  previewWrap.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  zoomLabel.innerText = `${Math.round(zoom * 100)}%`;
+}
+
+// Reset the view so the whole page fits and is centered in the drop zone
+function fitToViewport() {
+  const iw = preview.naturalWidth;
+  const ih = preview.naturalHeight;
+  if (!iw || !ih) return;
+  // Layout the image at its natural size; zoom handles the scaling.
+  preview.style.width = `${iw}px`;
+  preview.style.height = `${ih}px`;
+  const vp = dropZone.getBoundingClientRect();
+  const pad = 16;
+  const z = clamp(Math.min((vp.width - pad) / iw, (vp.height - pad) / ih), MIN_ZOOM, MAX_ZOOM);
+  zoom = z;
+  panX = (vp.width - iw * z) / 2;
+  panY = (vp.height - ih * z) / 2;
+  applyTransform();
+}
+
+// Zoom toward a point given in drop-zone-local coordinates
+function zoomAt(cx, cy, factor) {
+  const newZoom = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
+  if (newZoom === zoom) return;
+  panX = cx - (cx - panX) * (newZoom / zoom);
+  panY = cy - (cy - panY) * (newZoom / zoom);
+  zoom = newZoom;
+  applyTransform();
+}
+
+function setMode(next) {
+  mode = next;
+  modeCropBtn.classList.toggle('active', mode === 'crop');
+  modePanBtn.classList.toggle('active', mode === 'pan');
+  dropZone.classList.toggle('mode-crop', mode === 'crop');
+  dropZone.classList.toggle('mode-pan', mode === 'pan');
+}
 
 // Display the given image (File/Blob) in the upload area
 function showPreview(imageSource) {
@@ -27,17 +80,21 @@ function showPreview(imageSource) {
     URL.revokeObjectURL(currentPreviewUrl);
   }
   currentPreviewUrl = URL.createObjectURL(imageSource);
+  preview.onload = () => {
+    fitToViewport();
+    preview.onload = null;
+  };
   preview.src = currentPreviewUrl;
   dropZone.classList.add('has-image');
   actions.classList.add('visible');
+  setMode('crop');
   resetCrop();
   statusText.style.color = '#cdd6f4';
-  statusText.innerText = 'Drag on the image to crop (optional), then Extract & Translate.';
+  statusText.innerText = 'Drag to crop · scroll to zoom · switch to Pan to move.';
 }
 
 function resetCrop() {
   cropBox.style.display = 'none';
-  cropDisplay = null;
   cropNatural = null;
 }
 
@@ -88,46 +145,79 @@ fileInput.addEventListener('change', (e) => {
 // Prevent crop drags/clicks on the image from re-opening the file dialog
 previewWrap.addEventListener('click', (e) => e.stopPropagation());
 
-// --- Drag-to-crop selection over the preview image ---
+// --- Pointer interaction: drag-to-crop (crop mode) or drag-to-pan (pan mode) ---
+// The image is laid out at its natural size, so image-local px == natural px.
 let dragging = false;
-let startX = 0;
+let panning = false;
+let startX = 0;          // crop start, in image-local px
 let startY = 0;
+let cropLocal = null;    // crop selection in image-local px
+let panStartX = 0;       // pan start, in screen px
+let panStartY = 0;
+let panOriginX = 0;
+let panOriginY = 0;
+
+// Convert a screen point to image-local pixels, clamped to the image bounds
+function toImageLocal(clientX, clientY) {
+  const rect = preview.getBoundingClientRect();
+  return {
+    x: clamp((clientX - rect.left) / zoom, 0, preview.naturalWidth),
+    y: clamp((clientY - rect.top) / zoom, 0, preview.naturalHeight),
+  };
+}
 
 preview.addEventListener('mousedown', (e) => {
   e.preventDefault();
-  const rect = preview.getBoundingClientRect();
+  // Pan with the pan mode (left button) or the middle mouse button in any mode
+  if (mode === 'pan' || e.button === 1) {
+    panning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panOriginX = panX;
+    panOriginY = panY;
+    dropZone.classList.add('grabbing');
+    return;
+  }
+  const p = toImageLocal(e.clientX, e.clientY);
   dragging = true;
-  startX = clamp(e.clientX - rect.left, 0, rect.width);
-  startY = clamp(e.clientY - rect.top, 0, rect.height);
+  startX = p.x;
+  startY = p.y;
   cropBox.style.display = 'block';
   updateCropBox(startX, startY, 0, 0);
 });
 
 window.addEventListener('mousemove', (e) => {
+  if (panning) {
+    panX = panOriginX + (e.clientX - panStartX);
+    panY = panOriginY + (e.clientY - panStartY);
+    applyTransform();
+    return;
+  }
   if (!dragging) return;
-  const rect = preview.getBoundingClientRect();
-  const curX = clamp(e.clientX - rect.left, 0, rect.width);
-  const curY = clamp(e.clientY - rect.top, 0, rect.height);
-  const x = Math.min(startX, curX);
-  const y = Math.min(startY, curY);
-  const w = Math.abs(curX - startX);
-  const h = Math.abs(curY - startY);
+  const p = toImageLocal(e.clientX, e.clientY);
+  const x = Math.min(startX, p.x);
+  const y = Math.min(startY, p.y);
+  const w = Math.abs(p.x - startX);
+  const h = Math.abs(p.y - startY);
   updateCropBox(x, y, w, h);
-  cropDisplay = { x, y, w, h };
+  cropLocal = { x, y, w, h };
 });
 
 window.addEventListener('mouseup', () => {
+  if (panning) {
+    panning = false;
+    dropZone.classList.remove('grabbing');
+    return;
+  }
   if (!dragging) return;
   dragging = false;
 
-  if (cropDisplay && cropDisplay.w > 5 && cropDisplay.h > 5) {
-    const scaleX = preview.naturalWidth / preview.clientWidth;
-    const scaleY = preview.naturalHeight / preview.clientHeight;
+  if (cropLocal && cropLocal.w > 5 && cropLocal.h > 5) {
     cropNatural = {
-      x: Math.round(cropDisplay.x * scaleX),
-      y: Math.round(cropDisplay.y * scaleY),
-      w: Math.round(cropDisplay.w * scaleX),
-      h: Math.round(cropDisplay.h * scaleY),
+      x: Math.round(cropLocal.x),
+      y: Math.round(cropLocal.y),
+      w: Math.round(cropLocal.w),
+      h: Math.round(cropLocal.h),
     };
     statusText.style.color = '#cdd6f4';
     statusText.innerText = 'Crop set. Click Extract & Translate.';
@@ -136,12 +226,33 @@ window.addEventListener('mouseup', () => {
   }
 });
 
+// Crop box lives inside the transformed wrapper, so it is sized in image-local px
 function updateCropBox(x, y, w, h) {
   cropBox.style.left = `${x}px`;
   cropBox.style.top = `${y}px`;
   cropBox.style.width = `${w}px`;
   cropBox.style.height = `${h}px`;
 }
+
+// --- Zoom: mouse wheel toward cursor + toolbar buttons ---
+dropZone.addEventListener('wheel', (e) => {
+  if (!dropZone.classList.contains('has-image')) return;
+  e.preventDefault();
+  const vp = dropZone.getBoundingClientRect();
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  zoomAt(e.clientX - vp.left, e.clientY - vp.top, factor);
+}, { passive: false });
+
+function zoomByCenter(factor) {
+  const vp = dropZone.getBoundingClientRect();
+  zoomAt(vp.width / 2, vp.height / 2, factor);
+}
+
+zoomInBtn.addEventListener('click', () => zoomByCenter(1.25));
+zoomOutBtn.addEventListener('click', () => zoomByCenter(1 / 1.25));
+zoomFitBtn.addEventListener('click', fitToViewport);
+modeCropBtn.addEventListener('click', () => setMode('crop'));
+modePanBtn.addEventListener('click', () => setMode('pan'));
 
 // --- Preprocess (crop + upscale + grayscale + Otsu threshold) for better OCR ---
 async function buildProcessedBytes() {
@@ -244,9 +355,15 @@ function resetAll() {
     currentPreviewUrl = null;
   }
   preview.removeAttribute('src');
+  preview.style.width = '';
+  preview.style.height = '';
   dropZone.classList.remove('has-image');
   actions.classList.remove('visible');
   fileInput.value = '';
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+  applyTransform();
   resetCrop();
   statusText.style.color = '#a6e3a1';
   statusText.innerText = 'Ready';
