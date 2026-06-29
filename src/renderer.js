@@ -14,6 +14,7 @@ const cropBox = document.getElementById('crop-box');
 const actions = document.getElementById('actions');
 const extractBtn = document.getElementById('extract-btn');
 const clearBtn = document.getElementById('clear-btn');
+const fileNameEl = document.getElementById('file-name');
 const zoomLabel = document.getElementById('zoom-label');
 const modeCropBtn = document.getElementById('mode-crop');
 const modePanBtn = document.getElementById('mode-pan');
@@ -85,6 +86,9 @@ function showPreview(imageSource) {
     preview.onload = null;
   };
   preview.src = currentPreviewUrl;
+  const name = (imageSource && imageSource.name) ? imageSource.name : 'Pasted image';
+  fileNameEl.textContent = name;
+  fileNameEl.title = name;
   dropZone.classList.add('has-image');
   actions.classList.add('visible');
   setMode('crop');
@@ -355,6 +359,7 @@ function resetAll() {
     currentPreviewUrl = null;
   }
   preview.removeAttribute('src');
+  fileNameEl.textContent = '';
   preview.style.width = '';
   preview.style.height = '';
   dropZone.classList.remove('has-image');

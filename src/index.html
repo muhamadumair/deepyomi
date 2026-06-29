@@ -88,6 +88,28 @@
       z-index: 5;
     }
     #drop-zone.has-image #toolbar { display: flex; }
+
+    /* Uploaded file name badge */
+    #file-name {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      max-width: 60%;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #cdd6f4;
+      background: rgba(30, 30, 46, 0.85);
+      border: 1px solid #45475a;
+      border-radius: 8px;
+      backdrop-filter: blur(4px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      z-index: 5;
+    }
+    #drop-zone.has-image #file-name { display: block; }
     #toolbar button {
       padding: 6px 10px;
       font-size: 13px;
@@ -136,6 +158,7 @@
       <h2>Drop LN Page Here</h2>
       <p>Drag & drop your image scan, click to upload, or paste from clipboard</p>
     </div>
+    <div id="file-name"></div>
     <div id="toolbar">
       <button class="tool active" id="mode-crop" title="Crop mode (drag to select)">Crop</button>
       <button class="tool" id="mode-pan" title="Pan mode (drag to move)">Pan</button>
