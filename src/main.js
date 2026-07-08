@@ -79,16 +79,39 @@ function formatNovelText(text) {
     .replace(/\s+/g, ' ')
     .trim();
 
+  // Vertical OCR often renders rotated corner brackets as box-drawing or
+  // presentation-form characters. Normalize them back to standard brackets.
+  t = t
+    .replace(/┌-/g, '「')
+    .replace(/[┌⌜﹁︽]/g, '「')
+    .replace(/[┐⌝﹂︾]/g, '」');
+
+  // Repair opening 「 misread as a leading dash or box-drawing form after a
+  // sentence boundary (e.g. "。-まさか" → "。「まさか").
+  t = t.replace(/(^|[。、！？…」』）)])\s*[-┌─ー⌜﹁︽]+(?=[\u3000-\u30FF\u4E00-\u9FFF])/g, '$1「');
+
+  // Vertical em dash is sometimes misread as 和 (e.g. あれか 和軍票も → あれか──軍票も).
+  t = t.replace(/か\s*和(?=[\u3000-\u30FF\u4E00-\u9FFF])/g, 'か──');
+
   // Drop isolated Latin letters wedged between Japanese characters. These are
   // OCR noise for punctuation (e.g. the 》 in 《女神》 misread as "w").
   t = t.replace(new RegExp(`(?<=[${JP}])[A-Za-z](?=[${JP}])`, 'g'), '');
 
-  // Vertical OCR often misreads the closing guillemet 》 as a stray 。
-  // Repair 《…。 (no closing 》) back into 《…》.
-  t = t.replace(/《([^》。\n]{1,12})。/g, '《$1》');
+  // Vertical OCR often misreads the closing guillemet 》 as 。 or a quotation mark.
+  // Repair 《…[。 or quote-like] back into 《…》.
+  const misreadChars = '\u3002\u201C\u201D\u0022\u0027\u2019\u2018';
+  t = t.replace(
+    new RegExp(`《([^》\\n${misreadChars}]{1,12})[${misreadChars}]`, 'g'),
+    '《$1》'
+  );
 
   // Dialogue corner brackets 「」 are often read as half-width square brackets.
   t = t.replace(/[\[［]/g, '「').replace(/[\]］]/g, '」');
+
+  // Repair opening dialogue bracket 「 misread as katakana prolonged sound ー.
+  // It can appear at the start of text, after a closing bracket, or after a
+  // sentence-ending punctuation such as 。
+  t = t.replace(/(^|[」』）】。、！？…])\s*ー(?=[^」「]*?」)/g, '$1「');
 
   // The Japanese ellipsis …… is frequently misread as colons or a vertical
   // ellipsis glyph. Normalize those back to ……
@@ -99,11 +122,28 @@ function formatNovelText(text) {
   t = t
     .replace(/\s*([「『（(])/g, '\n\n$1')
     .replace(/([」』）)])\s*/g, '$1\n\n')
+    .replace(/([」』）)])\s*\1/g, '$1')
     .replace(/[ \t]+/g, ' ')
     .replace(/ ?\n ?/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/^\n+|\n+$/g, '')
     .trim();
+
+  // Structural repair: any dialogue block that opens with 「 but has no
+  // closing bracket should get one. If it ends with the question particle か
+  // (with optional OCR noise), add ？).
+  t = t
+    .split(/\n\n+/)
+    .map(block => {
+      const trimmed = block.trim();
+      if (!trimmed.startsWith('「')) return block;
+      if (/[」』）)]$/.test(trimmed)) return block;
+      if (/か[っつッツｯ?？]*$/.test(trimmed)) {
+        return trimmed.replace(/か[っつッツｯ?？]*$/, 'か？\u300D');
+      }
+      return trimmed + '\u300D';
+    })
+    .join('\n\n');
 
   return t;
 }
