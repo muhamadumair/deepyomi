@@ -1,9 +1,11 @@
-const { app, BrowserWindow, ipcMain, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard, desktopCapturer, screen } = require('electron');
 const path = require('node:path');
 const { createWorker, PSM } = require('tesseract.js');
 
+let mainWindow = null;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1000,
     height: 900,
     minWidth: 700,
@@ -15,8 +17,8 @@ function createWindow() {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'index.html'));
-  // Optional: win.webContents.openDevTools(); // Uncomment to debug
+  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // Optional: mainWindow.webContents.openDevTools(); // Uncomment to debug
 }
 
 app.whenReady().then(() => {
@@ -64,6 +66,84 @@ ipcMain.handle('run-ocr', async (event, bytes) => {
   const worker = await getWorker();
   const { data } = await worker.recognize(Buffer.from(bytes));
   return data.text;
+});
+
+// --- Snip-to-image (Windows Snipping Tool style screen capture) ---
+let snipWindows = [];
+let snipResolve = null;
+
+function closeSnipWindows() {
+  snipWindows.forEach(w => { if (!w.isDestroyed()) w.close(); });
+  snipWindows = [];
+}
+
+ipcMain.handle('start-snip', async () => {
+  if (mainWindow) mainWindow.hide();
+  // Give the OS time to actually hide the window before we screenshot,
+  // otherwise our own app can appear in the captured image.
+  await new Promise(r => setTimeout(r, 150));
+
+  return new Promise(async (resolve) => {
+    snipResolve = (bytes) => {
+      resolve(bytes);
+      if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+    };
+
+    try {
+      const displays = screen.getAllDisplays();
+      const sources = await desktopCapturer.getSources({
+        types: ['screen'],
+        thumbnailSize: { width: 3840, height: 2160 }
+      });
+
+      displays.forEach((display) => {
+        const source = sources.find(s => s.display_id === String(display.id)) || sources[0];
+        if (!source) return;
+        const dataUrl = source.thumbnail.toDataURL();
+
+        const win = new BrowserWindow({
+          x: display.bounds.x,
+          y: display.bounds.y,
+          width: display.bounds.width,
+          height: display.bounds.height,
+          frame: false,
+          transparent: true,
+          alwaysOnTop: true,
+          skipTaskbar: true,
+          resizable: false,
+          movable: false,
+          hasShadow: false,
+          webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+          }
+        });
+        win.setAlwaysOnTop(true, 'screen-saver');
+        win.loadFile(path.join(__dirname, 'snip.html'));
+        win.webContents.once('did-finish-load', () => {
+          win.webContents.send('snip-init', dataUrl);
+        });
+        snipWindows.push(win);
+      });
+
+      if (snipWindows.length === 0) {
+        snipResolve(null);
+      }
+    } catch (err) {
+      console.error('Failed to start snip:', err);
+      snipResolve(null);
+    }
+  });
+});
+
+ipcMain.on('snip-done', (event, bytes) => {
+  closeSnipWindows();
+  if (snipResolve) { snipResolve(bytes); snipResolve = null; }
+});
+
+ipcMain.on('snip-cancel', () => {
+  closeSnipWindows();
+  if (snipResolve) { snipResolve(null); snipResolve = null; }
 });
 
 // Range of characters that count as "Japanese" (kana, kanji, CJK punctuation,
@@ -131,7 +211,7 @@ function formatNovelText(text) {
 
   // Structural repair: any dialogue block that opens with 「 but has no
   // closing bracket should get one. If it ends with the question particle か
-  // (with optional OCR noise), add ？).
+  // (with optional OCR noise), add ？」.
   t = t
     .split(/\n\n+/)
     .map(block => {

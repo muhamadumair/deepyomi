@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Snip</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: crosshair;
+      background: transparent;
+    }
+    #bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+    #dim {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+    #selection {
+      position: absolute;
+      border: 2px solid #89b4fa;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      display: none;
+      pointer-events: none;
+    }
+    #hint {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 30, 46, 0.85);
+      color: #cdd6f4;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <img id="bg" alt="screen" />
+  <div id="dim"></div>
+  <div id="selection"></div>
+  <div id="hint">Drag to select an area &middot; Esc to cancel</div>
+  <script src="snip.js"></script>
+</body>
+</html>

@@ -21,6 +21,7 @@ const modePanBtn = document.getElementById('mode-pan');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomFitBtn = document.getElementById('zoom-fit');
+const snipBtn = document.getElementById('snip-btn');
 
 let currentPreviewUrl = null;
 let cropNatural = null;   // selection mapped to natural image pixels (== image-local px)
@@ -102,7 +103,7 @@ function resetCrop() {
   cropNatural = null;
 }
 
-// Handle UI drag animations
+// Highlight the drop zone while a file is dragged over it
 dropZone.addEventListener('dragover', (e) => {
   e.preventDefault();
   dropZone.classList.add('hover');
@@ -374,5 +375,31 @@ function resetAll() {
   statusText.innerText = 'Ready';
 }
 
+// --- Snip Screenshot (Windows Snipping Tool style capture) ---
+async function runSnip() {
+  try {
+    snipBtn.disabled = true;
+    statusText.style.color = '#f9e2af';
+    statusText.innerText = 'Select an area to snip... (Esc to cancel)';
+
+    const bytes = await ipcRenderer.invoke('start-snip');
+    if (!bytes) {
+      statusText.style.color = '#a6adc8';
+      statusText.innerText = 'Snip canceled.';
+      return;
+    }
+
+    const file = new File([bytes], 'Snipped screenshot.png', { type: 'image/png' });
+    showPreview(file);
+  } catch (error) {
+    console.error(error);
+    statusText.innerText = `Snip error: ${error.message || error}`;
+    statusText.style.color = '#f38ba8';
+  } finally {
+    snipBtn.disabled = false;
+  }
+}
+
 extractBtn.addEventListener('click', runExtract);
 clearBtn.addEventListener('click', resetAll);
+snipBtn.addEventListener('click', runSnip);

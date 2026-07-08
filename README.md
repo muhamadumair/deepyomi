@@ -13,17 +13,24 @@ low-friction way to get a translation without retyping anything.
 
 ## Features
 
-- **Drag, paste, or pick** an image of a light-novel page.
+- **Drag, paste, pick, or snip** an image of a light-novel page.
+- **Snip Screenshot** — capture any region of your screen directly, Windows
+  Snipping Tool style, without leaving the app. Works across multiple
+  monitors.
 - **Vertical (tategaki) OCR** via [Tesseract.js](https://github.com/naptha/tesseract.js)
   using the high-accuracy `jpn_vert` *best* model and a vertical-text page
   segmentation mode.
+- **Full-size image viewer** — zoom (scroll wheel or toolbar), pan, and a
+  crop tool, so you can work with the page at any resolution.
 - **Crop tool** — drag a box over just the body text to exclude decorative
   title blocks before recognition.
 - **Image preprocessing** — automatic crop, upscale, grayscale, and Otsu
   thresholding to sharpen dense kanji.
 - **Light-novel text clean-up** — repairs common OCR artifacts (`《…》`
   guillemets, `「」` corner brackets, `……` ellipses, stray Latin letters) and
-  puts each dialogue/monologue on its own line.
+  puts each dialogue/monologue on its own line. Dialogue blocks missing a
+  closing bracket are repaired structurally, including adding `？」` when a
+  line ends in the question particle か.
 - **One-click DeepL hand-off** — opens the translation in your browser and also
   copies the text to your clipboard as a fallback.
 
@@ -48,9 +55,11 @@ npm start
 ## Usage
 
 1. **Load a page** — drag an image onto the window, paste from the clipboard,
-   or click to browse.
+   click to browse, or click **Snip Screenshot** to select a region of your
+   screen (e.g. straight from an e-reader or browser).
 2. **Crop (optional)** — drag a box over the body text to skip the stylized
-   title block. Drag a tiny/empty box to clear the selection.
+   title block. Drag a tiny/empty box to clear the selection. Use the toolbar
+   to zoom, fit, or switch to Pan mode to move around a zoomed-in page.
 3. **Extract & Translate** — the app preprocesses the image, runs OCR, formats
    the text, and opens DeepL. The text is also on your clipboard.
 4. **Clear** — reset for the next page.
@@ -64,9 +73,11 @@ npm start
 ```
 deepyomi/
 ├─ src/
-│  ├─ main.js       # Electron main process: window, OCR worker, DeepL hand-off
-│  ├─ renderer.js   # UI logic: drag/drop, crop tool, image preprocessing
-│  └─ index.html    # App window markup and styles
+│  ├─ main.js       # Electron main process: window, OCR worker, snip capture, DeepL hand-off
+│  ├─ renderer.js   # UI logic: drag/drop, crop tool, zoom/pan, image preprocessing
+│  ├─ index.html    # App window markup and styles
+│  ├─ snip.js       # Snip overlay logic: region selection and cropping
+│  └─ snip.html     # Full-screen transparent overlay used for screen snipping
 ├─ package.json
 └─ README.md
 ```
@@ -77,6 +88,8 @@ deepyomi/
   expected. The clean-up step fixes common, systematic errors only — the full
   text is copied to your clipboard so you can correct anything by hand.
 - Designed and tested on Windows; it should run anywhere Electron does.
+- **Snip Screenshot** uses Electron's `desktopCapturer`. On macOS this requires
+  granting the app Screen Recording permission in System Settings.
 
 ---
 
