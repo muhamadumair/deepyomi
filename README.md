@@ -100,7 +100,11 @@ deepyomi/
 - **Manga mode** requires manually drawing a box over each speech bubble in
   reading order; there is no automatic bubble/panel detection. Sound effects
   and narration boxes outside bubbles are not treated specially — select
-  whatever text regions you want extracted.
+  whatever text regions you want extracted. Since bubbles are round but
+  selections are rectangular, the app auto-trims each crop down to the
+  bubble's white interior (flood-fill from the center) to discard background
+  art/screentone the box's corners would otherwise capture — draw the box
+  loosely around the bubble; it doesn't need to be pixel-perfect.
 - **Snip Screenshot** uses Electron's `desktopCapturer`. On macOS this requires
   granting the app Screen Recording permission in System Settings.
 

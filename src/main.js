@@ -11,10 +11,16 @@ function createWindow() {
     minWidth: 700,
     minHeight: 600,
     resizable: true,
+    show: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false // Simplified for local personal utility use
     }
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
   });
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));

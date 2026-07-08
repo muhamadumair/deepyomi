@@ -6,7 +6,8 @@
   "scripts": {
     "build:css": "tailwindcss -i ./src/tailwind.css -o ./src/output.css --minify",
     "watch:css": "tailwindcss -i ./src/tailwind.css -o ./src/output.css --watch",
-    "start": "npm run build:css && electron ."
+    "prestart": "npm run build:css",
+    "start": "electron ."
   },
   "keywords": [
     "electron",
