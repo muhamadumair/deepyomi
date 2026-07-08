@@ -4,7 +4,9 @@
   "description": "Electron desktop app that OCRs vertical Japanese light-novel pages and opens the text in DeepL for translation.",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "build:css": "tailwindcss -i ./src/tailwind.css -o ./src/output.css --minify",
+    "watch:css": "tailwindcss -i ./src/tailwind.css -o ./src/output.css --watch",
+    "start": "npm run build:css && electron ."
   },
   "keywords": [
     "electron",
@@ -21,6 +23,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "electron": "^42.5.0"
+    "electron": "^42.5.0",
+    "tailwindcss": "^3.4.19"
   }
 }

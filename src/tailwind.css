@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  h2 { @apply mb-2 text-mocha-pink; }
+  p { @apply text-mocha-subtext0 text-sm text-center px-5; }
+  button {
+    @apply text-sm font-semibold py-2 px-4 border-0 rounded-lg cursor-pointer transition duration-150;
+  }
+  button:hover { @apply brightness-110; }
+  button:disabled { @apply opacity-50 cursor-default; }
+}
+
+@layer components {
+  /* App window (index.html) */
+  .app-body {
+    @apply bg-mocha-base text-mocha-text flex flex-col h-screen p-3.5 gap-2.5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  #top-bar { @apply flex justify-end; }
+  #snip-btn { @apply bg-mocha-pink text-mocha-base; }
+
+  #drop-zone {
+    @apply relative flex-1 w-full min-h-0 border-[3px] border-dashed border-mocha-blue rounded-xl
+           flex flex-col items-center justify-center overflow-hidden cursor-pointer
+           transition-colors duration-200;
+  }
+  #drop-zone.hover { @apply bg-mocha-surface0; }
+  #drop-zone.has-image { @apply cursor-default border-solid border-mocha-surface0; }
+
+  #preview-wrap {
+    display: none;
+    @apply absolute top-0 left-0 origin-top-left;
+    line-height: 0;
+    will-change: transform;
+  }
+  #drop-zone.has-image #preview-wrap { display: inline-block; }
+
+  #preview {
+    @apply block rounded select-none;
+    -webkit-user-drag: none;
+  }
+
+  #crop-box {
+    display: none;
+    @apply absolute border-2 border-dashed border-mocha-blue pointer-events-none;
+    background: rgba(137, 180, 250, 0.18);
+  }
+
+  #drop-zone.has-image.mode-crop #preview { @apply cursor-crosshair; }
+  #drop-zone.has-image.mode-pan #preview { cursor: grab; }
+  #drop-zone.has-image.mode-pan.grabbing #preview { cursor: grabbing; }
+  #drop-zone.has-image #prompt { display: none; }
+  #prompt { @apply text-center; }
+
+  #toolbar {
+    display: none;
+    @apply absolute top-2.5 right-2.5 gap-1.5 items-center p-1.5 bg-mocha-base/85
+           border border-mocha-surface1 rounded-[10px] backdrop-blur-sm z-[5];
+  }
+  #drop-zone.has-image #toolbar { display: flex; }
+
+  #file-name {
+    display: none;
+    @apply absolute top-2.5 left-2.5 max-w-[60%] py-1.5 px-2.5 text-xs font-semibold
+           text-mocha-text bg-mocha-base/85 border border-mocha-surface1 rounded-lg
+           backdrop-blur-sm whitespace-nowrap overflow-hidden text-ellipsis z-[5];
+  }
+  #drop-zone.has-image #file-name { display: block; }
+
+  #toolbar button { @apply py-1.5 px-2.5 text-[13px] min-w-[34px]; }
+  #toolbar .tool { @apply bg-mocha-surface0 text-mocha-text; }
+  #toolbar .tool.active { @apply bg-mocha-blue text-mocha-base; }
+
+  #zoom-label { @apply text-xs font-semibold text-mocha-subtext0 min-w-[44px] text-center; }
+
+  #actions { display: none; @apply gap-2.5 justify-center; }
+  #actions.visible { display: flex; }
+
+  #extract-btn { @apply bg-mocha-blue text-mocha-base; }
+  #clear-btn { @apply bg-mocha-surface1 text-mocha-text; }
+
+  #status { @apply text-center font-bold text-mocha-green; }
+
+  /* Snip overlay window (snip.html) — applied to both <html> and <body> so
+     the 100% height chain resolves correctly. */
+  .snip-surface {
+    @apply w-full h-full overflow-hidden;
+    cursor: crosshair;
+    background: transparent;
+  }
+  #bg {
+    @apply absolute top-0 left-0 w-full h-full select-none pointer-events-none;
+    -webkit-user-drag: none;
+  }
+  #dim {
+    @apply absolute top-0 left-0 w-full h-full pointer-events-none;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  #selection {
+    display: none;
+    @apply absolute border-2 border-mocha-blue pointer-events-none;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  }
+  #hint {
+    @apply absolute top-4 left-1/2 -translate-x-1/2 bg-mocha-base/85 text-mocha-text
+           py-2 px-3.5 rounded-lg pointer-events-none whitespace-nowrap;
+    font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+}
