@@ -1,8 +1,12 @@
 const { ipcRenderer } = require('electron');
 
-// OCR runs in the main process; show its progress here
+// OCR runs in the main process; show its progress here. currentBubbleLabel
+// is set by runExtract() while looping through manga bubbles so the
+// progress line can show which bubble is being processed.
+let currentBubbleLabel = '';
 ipcRenderer.on('ocr-progress', (event, pct) => {
-  statusText.innerText = `Extracting Text: ${pct}%`;
+  const prefix = currentBubbleLabel ? `${currentBubbleLabel} — ` : '';
+  statusText.innerText = `${prefix}Extracting Text: ${pct}%`;
 });
 
 const dropZone = document.getElementById('drop-zone');
@@ -18,6 +22,10 @@ const fileNameEl = document.getElementById('file-name');
 const zoomLabel = document.getElementById('zoom-label');
 const modeCropBtn = document.getElementById('mode-crop');
 const modePanBtn = document.getElementById('mode-pan');
+const modeBubbleBtn = document.getElementById('mode-bubble');
+const bubbleUndoBtn = document.getElementById('bubble-undo');
+const bubbleClearBtn = document.getElementById('bubble-clear');
+const bubbleCountEl = document.getElementById('bubble-count');
 const zoomInBtn = document.getElementById('zoom-in');
 const zoomOutBtn = document.getElementById('zoom-out');
 const zoomFitBtn = document.getElementById('zoom-fit');
@@ -26,11 +34,17 @@ const snipBtn = document.getElementById('snip-btn');
 let currentPreviewUrl = null;
 let cropNatural = null;   // selection mapped to natural image pixels (== image-local px)
 
+// Manga mode: an ordered list of speech-bubble regions (natural image px),
+// in the order the user selected them (right-to-left, top-to-bottom is the
+// natural manga reading order). Each entry has a matching overlay element.
+let bubbleRegions = [];
+let bubbleBoxEls = [];
+
 // View transform state (transform-origin is top-left of #preview-wrap)
 let zoom = 1;
 let panX = 0;
 let panY = 0;
-let mode = 'crop';        // 'crop' | 'pan'
+let mode = 'crop';        // 'crop' | 'pan' | 'bubble'
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 12;
 
@@ -72,8 +86,56 @@ function setMode(next) {
   mode = next;
   modeCropBtn.classList.toggle('active', mode === 'crop');
   modePanBtn.classList.toggle('active', mode === 'pan');
+  modeBubbleBtn.classList.toggle('active', mode === 'bubble');
   dropZone.classList.toggle('mode-crop', mode === 'crop');
   dropZone.classList.toggle('mode-pan', mode === 'pan');
+  dropZone.classList.toggle('mode-bubble', mode === 'bubble');
+
+  if (mode === 'bubble' && dropZone.classList.contains('has-image')) {
+    statusText.style.color = '#cdd6f4';
+    statusText.innerText = 'Manga mode: drag over each speech bubble in reading order (right → left, top → bottom).';
+  }
+}
+
+// Add a new numbered bubble overlay for a selected region (natural image px)
+function addBubble(region) {
+  bubbleRegions.push(region);
+
+  const el = document.createElement('div');
+  el.className = 'bubble-box';
+  el.style.left = `${region.x}px`;
+  el.style.top = `${region.y}px`;
+  el.style.width = `${region.w}px`;
+  el.style.height = `${region.h}px`;
+
+  const badge = document.createElement('span');
+  badge.className = 'bubble-number';
+  badge.textContent = String(bubbleRegions.length);
+  el.appendChild(badge);
+
+  previewWrap.appendChild(el);
+  bubbleBoxEls.push(el);
+  updateBubbleCount();
+}
+
+function undoBubble() {
+  if (bubbleRegions.length === 0) return;
+  bubbleRegions.pop();
+  const el = bubbleBoxEls.pop();
+  if (el) el.remove();
+  updateBubbleCount();
+}
+
+function resetBubbles() {
+  bubbleBoxEls.forEach((el) => el.remove());
+  bubbleBoxEls = [];
+  bubbleRegions = [];
+  updateBubbleCount();
+}
+
+function updateBubbleCount() {
+  const n = bubbleRegions.length;
+  bubbleCountEl.textContent = `${n} bubble${n === 1 ? '' : 's'}`;
 }
 
 // Display the given image (File/Blob) in the upload area
@@ -94,6 +156,7 @@ function showPreview(imageSource) {
   actions.classList.add('visible');
   setMode('crop');
   resetCrop();
+  resetBubbles();
   statusText.style.color = '#cdd6f4';
   statusText.innerText = 'Drag to crop · scroll to zoom · switch to Pan to move.';
 }
@@ -218,14 +281,20 @@ window.addEventListener('mouseup', () => {
   dragging = false;
 
   if (cropLocal && cropLocal.w > 5 && cropLocal.h > 5) {
-    cropNatural = {
+    const region = {
       x: Math.round(cropLocal.x),
       y: Math.round(cropLocal.y),
       w: Math.round(cropLocal.w),
       h: Math.round(cropLocal.h),
     };
-    statusText.style.color = '#cdd6f4';
-    statusText.innerText = 'Crop set. Click Extract & Translate.';
+    if (mode === 'bubble') {
+      cropBox.style.display = 'none';
+      addBubble(region);
+    } else {
+      cropNatural = region;
+      statusText.style.color = '#cdd6f4';
+      statusText.innerText = 'Crop set. Click Extract & Translate.';
+    }
   } else {
     resetCrop();
   }
@@ -258,12 +327,16 @@ zoomOutBtn.addEventListener('click', () => zoomByCenter(1 / 1.25));
 zoomFitBtn.addEventListener('click', fitToViewport);
 modeCropBtn.addEventListener('click', () => setMode('crop'));
 modePanBtn.addEventListener('click', () => setMode('pan'));
+modeBubbleBtn.addEventListener('click', () => setMode('bubble'));
+bubbleUndoBtn.addEventListener('click', undoBubble);
+bubbleClearBtn.addEventListener('click', resetBubbles);
 
 // --- Preprocess (crop + upscale + grayscale + Otsu threshold) for better OCR ---
-async function buildProcessedBytes() {
+// Shared by the single-crop (light novel) flow and the per-bubble (manga) flow.
+async function buildProcessedBytesForRegion(region) {
   const nW = preview.naturalWidth;
   const nH = preview.naturalHeight;
-  let { x: sx, y: sy, w: sw, h: sh } = cropNatural || { x: 0, y: 0, w: nW, h: nH };
+  const { x: sx, y: sy, w: sw, h: sh } = region || { x: 0, y: 0, w: nW, h: nH };
 
   // Upscale small regions so glyphs are large enough for Tesseract
   const scale = clamp(1800 / sw, 1, 3);
@@ -323,16 +396,39 @@ async function buildProcessedBytes() {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
+async function buildProcessedBytes() {
+  return buildProcessedBytesForRegion(cropNatural);
+}
+
 // --- Extract & Translate ---
 async function runExtract() {
   try {
     extractBtn.disabled = true;
     statusText.style.color = '#f9e2af';
-    statusText.innerText = 'Preprocessing image...';
-    const bytes = await buildProcessedBytes();
 
-    statusText.innerText = 'Initializing Tesseract Engine...';
-    const extractedText = await ipcRenderer.invoke('run-ocr', bytes);
+    let extractedText;
+
+    if (mode === 'bubble' && bubbleRegions.length > 0) {
+      // Manga mode: OCR each bubble separately, in the order they were
+      // selected (right-to-left, top-to-bottom), then stitch the dialogue
+      // together as if it were a single page of text.
+      const texts = [];
+      for (let i = 0; i < bubbleRegions.length; i += 1) {
+        currentBubbleLabel = `Bubble ${i + 1}/${bubbleRegions.length}`;
+        statusText.innerText = `${currentBubbleLabel}: preprocessing...`;
+        const bytes = await buildProcessedBytesForRegion(bubbleRegions[i]);
+        statusText.innerText = `${currentBubbleLabel}: running OCR...`;
+        const text = await ipcRenderer.invoke('run-ocr', bytes);
+        texts.push(text.trim());
+      }
+      currentBubbleLabel = '';
+      extractedText = texts.filter(Boolean).join('\n\n');
+    } else {
+      statusText.innerText = 'Preprocessing image...';
+      const bytes = await buildProcessedBytes();
+      statusText.innerText = 'Initializing Tesseract Engine...';
+      extractedText = await ipcRenderer.invoke('run-ocr', bytes);
+    }
 
     if (extractedText.trim().length === 0) {
       statusText.innerText = 'No Japanese text detected.';
@@ -371,6 +467,7 @@ function resetAll() {
   panY = 0;
   applyTransform();
   resetCrop();
+  resetBubbles();
   statusText.style.color = '#a6e3a1';
   statusText.innerText = 'Ready';
 }

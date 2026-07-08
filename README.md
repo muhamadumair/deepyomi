@@ -3,8 +3,9 @@
 > 読み (*yomi*, "reading") + a deep dive into your light novels.
 
 **DeepYomi** is a small Electron desktop app that reads **vertical Japanese**
-light-novel page scans, runs OCR on them, cleans up the text, and opens the
-result in **DeepL** for translation — all from a single drag-and-drop window.
+light-novel pages and manga speech bubbles, runs OCR on them, cleans up the
+text, and opens the result in **DeepL** for translation — all from a single
+drag-and-drop window.
 
 It's built for readers who hit a page they can't quite parse and want a fast,
 low-friction way to get a translation without retyping anything.
@@ -24,6 +25,9 @@ low-friction way to get a translation without retyping anything.
   crop tool, so you can work with the page at any resolution.
 - **Crop tool** — drag a box over just the body text to exclude decorative
   title blocks before recognition.
+- **Manga mode** — for pages with multiple speech bubbles, drag over each
+  bubble in reading order (right → left, top → bottom); the app OCRs each
+  bubble individually and stitches the dialogue together before translation.
 - **Image preprocessing** — automatic crop, upscale, grayscale, and Otsu
   thresholding to sharpen dense kanji.
 - **Light-novel text clean-up** — repairs common OCR artifacts (`《…》`
@@ -60,8 +64,13 @@ npm start
 2. **Crop (optional)** — drag a box over the body text to skip the stylized
    title block. Drag a tiny/empty box to clear the selection. Use the toolbar
    to zoom, fit, or switch to Pan mode to move around a zoomed-in page.
+   - **For manga**, switch to **Manga mode** instead and drag a box over each
+     speech bubble in the order you'd naturally read them (right to left,
+     top to bottom, panel by panel). Each bubble gets a numbered outline;
+     use **Undo**/**Clear** to fix mistakes.
 3. **Extract & Translate** — the app preprocesses the image, runs OCR, formats
-   the text, and opens DeepL. The text is also on your clipboard.
+   the text, and opens DeepL. In Manga mode, it OCRs each bubble in order and
+   joins the dialogue before translating. The text is also on your clipboard.
 4. **Clear** — reset for the next page.
 
 > First extraction may pause briefly while the OCR model downloads.
@@ -88,6 +97,10 @@ deepyomi/
   expected. The clean-up step fixes common, systematic errors only — the full
   text is copied to your clipboard so you can correct anything by hand.
 - Designed and tested on Windows; it should run anywhere Electron does.
+- **Manga mode** requires manually drawing a box over each speech bubble in
+  reading order; there is no automatic bubble/panel detection. Sound effects
+  and narration boxes outside bubbles are not treated specially — select
+  whatever text regions you want extracted.
 - **Snip Screenshot** uses Electron's `desktopCapturer`. On macOS this requires
   granting the app Screen Recording permission in System Settings.
 
