@@ -20,10 +20,16 @@
     <div id="toolbar">
       <button class="tool active" id="mode-crop" title="Crop mode (drag to select)">Crop</button>
       <button class="tool" id="mode-pan" title="Pan mode (drag to move)">Pan</button>
+      <button class="tool" id="mode-bubble" title="Manga mode: drag over each speech bubble in reading order (right → left, top → bottom)">Manga</button>
       <button class="tool" id="zoom-out" title="Zoom out">&minus;</button>
       <span id="zoom-label">100%</span>
       <button class="tool" id="zoom-in" title="Zoom in">+</button>
       <button class="tool" id="zoom-fit" title="Fit to view">Fit</button>
+    </div>
+    <div id="bubble-controls">
+      <button class="tool" id="bubble-undo" title="Remove last bubble">Undo</button>
+      <button class="tool" id="bubble-clear" title="Clear all bubbles">Clear</button>
+      <span id="bubble-count">0 bubbles</span>
     </div>
     <div id="preview-wrap">
       <img id="preview" alt="preview" />
